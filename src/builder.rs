@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::{quote};
-use syn::{parse_quote, parse, Data, DeriveInput};
-use tools::{modify, format_str, doc_struct, TypeDecl};
+use syn::{parse, Data, DeriveInput};
+use tools::{modify, format_code, doc_struct, TypeDecl, publicify};
 
 #[path = "tools.rs"]
 mod tools;
@@ -12,15 +12,14 @@ pub fn codegen(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let mut struct_entry = ast.clone();
 
-    struct_entry.ident = parse_quote!(ty);
-    struct_entry.vis = parse_quote!(pub);
+    publicify(&mut struct_entry);
 
     let Data::Struct(ref mut data_struct) = struct_entry.data else {
         panic!("Cannot destruct Struct");
     };
 
     let parent = ast.ident.to_string();
-    let original = format_str(item.to_string());
+    let original = format_code(item.to_string());
 
     let mut ty_decls: Vec<TypeDecl> = Vec::new();
 
@@ -28,7 +27,6 @@ pub fn codegen(_attr: TokenStream, item: TokenStream) -> TokenStream {
         let ident = modify(field, parent.as_str(), index);
         ty_decls.push(TypeDecl::new(original.as_str(), ident, &field.ty));
     }
-
 
     let name = ast.ident;
     let docs = doc_struct(parent.as_str(), original.as_str());

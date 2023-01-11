@@ -1,7 +1,7 @@
 use ::rustfmt::{format_input, Input};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens, TokenStreamExt};
-use syn::{Ident, Type, Field, parse_quote};
+use syn::{Ident, Type, Field, parse_quote, DeriveInput};
 use std::{io::Sink, marker::PhantomData};
 
 pub struct TypeDecl<'a> {
@@ -15,7 +15,7 @@ impl<'a> TypeDecl<'a> {
     pub fn new(original: &'a str, ident: Ident, ty: &'a Type) -> Self {
         Self {
             original,
-            ident: ident.clone(),
+            ident,
             ty: ty.clone(),
             _marker: PhantomData
         }
@@ -65,7 +65,9 @@ pub fn doc_struct(name: &str, original: &str) -> String {
     )
 }
 
-pub fn format_str<'a>(orig: String) -> String {
+
+
+pub fn format_code(orig: String) -> String {
     format_input(Input::Text(orig), &<_>::default(), None::<&mut Sink>)
         .map(|res| res.1.into_iter().next())
         .ok()
@@ -92,6 +94,10 @@ pub fn modify(field: &mut Field, parent: &str, i: usize) -> Ident {
     ident
 }
 
+pub fn publicify(ast: &mut DeriveInput) {
+    ast.ident = parse_quote!(ty);
+    ast.vis = parse_quote!(pub);
+}
 
 
 
