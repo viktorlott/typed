@@ -1,11 +1,12 @@
+
 `Typed` is a procedural macro that is used for disassembling `structs`, `enums` and `fns` into their inner `type` components that are then accompanied with documentation and examples. The `Typed` structures will be wrapped into a module and reassigned with a name (default `ty`), this also goes for the `static` and `generic` fields.
 <br />
 <br />
-*Project is still under development*
+#### *Project is still under development*
 <br />
 <br />
 
-Current support:
+#### Current support:
 - `struct`
   - [x] static types
   - [ ] generic types
@@ -47,3 +48,26 @@ trait Trait: Container::proto {
     fn extend(&mut self, val: Container::proto::another); 
 }
 ```
+
+
+# Future plans 
+#### Renaming disassembler
+```rust
+#[type_it = "MContainer"]
+struct Containter<T> {
+    current: u8,
+    buffer: Vec<u8>,
+    another: T,
+}
+
+fn main() {
+    let x: Container<i32> = {
+        current: 10,
+        buffer: Vec::default(),
+        another: 20,
+    }
+    
+    let y: MContainer::ty<i32> = x;
+}
+```
+
