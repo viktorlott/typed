@@ -29,7 +29,7 @@ struct Containter<T> {
 struct Area(i32);
 ```
 - Will let you access the struct types as followed:
-```
+```rust
 let current: Container::current = 10;
 let buffer: Container::buffer = vec![current];
 let another: <Container::ty<u8> as Container::proto>::another = 20;
@@ -41,7 +41,7 @@ let container: Container::ty<u8> =
     };
 ```
 - It's also possible to use it as following:
-```
+```rust
 trait Trait: Container::proto {
     fn retrieve(&self) -> Container::proto::buffer;
     fn extend(&mut self, val: Container::proto::another); 
