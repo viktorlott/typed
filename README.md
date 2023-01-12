@@ -4,19 +4,6 @@
 
 #### *Project is still under development*
 
-
-#### Current support:
-##### `struct`
-  - [x] static types
-  - [ ] generic types
-##### `enum`
-  - [ ] static types
-  - [ ] generic types
-##### `fn`
-  - [ ] static types
-  - [ ] generic types
-
-
 # Disassembler
 ```rust
 #[type_it]
@@ -76,6 +63,17 @@ trait Trait: Container::proto {
     fn extend(&mut self, val: Container::proto::another); 
 }
 ```
+
+#### Current support:
+##### `struct`
+  - [x] static types
+  - [ ] generic types
+##### `enum`
+  - [ ] static types
+  - [ ] generic types
+##### `fn`
+  - [ ] static types
+  - [ ] generic types
 
 
 # Future plans 
