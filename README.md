@@ -7,14 +7,14 @@
 
 Current support:
 - `struct`
-- - [x] static types
-- - [] generic types
+-   [x] static types
+-   [ ] generic types
 - `enum`
-- - [] static types
-- - [] generic types
+-   [ ] static types
+-   [ ] generic types
 - `fn`
-- - [] static types
-- - [] generic types
+-   [ ] static types
+-   [ ] generic types
 
 
 # Struct example
