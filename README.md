@@ -1,21 +1,49 @@
 
 `Typed` is a procedural macro that is used for disassembling `structs`, `enums` and `fns` into their inner `type` components that are then accompanied with documentation and examples. The `Typed` structures will be wrapped into a module and reassigned with a name (default `ty`), this also goes for the `static` and `generic` fields.
-<br />
-<br />
+
+
 #### *Project is still under development*
-<br />
-<br />
+
 
 #### Current support:
-- `struct`
+##### `struct`
   - [x] static types
   - [ ] generic types
-- `enum`
+##### `enum`
   - [ ] static types
   - [ ] generic types
-- `fn`
+##### `fn`
   - [ ] static types
   - [ ] generic types
+
+
+# Disassembler
+```rust
+#[type_it]
+struct #name {
+    #(#ident: #ty)*
+}
+
+// Turns into
+
+#[allow(non_snake_case)]
+// Docs (/w examples) describing the original `item` and also what `types` are available to use.
+#[doc = #docs] 
+pub mod #name {
+    #![allow(non_camel_case_types)]
+    
+    // The static fields of the `item` as type aliases.
+    #(#ty_decls)* // Access through `#name::#field`
+    
+    // A trait where all `ìtem` fields are associated types
+    #struct_generic // Access through `#name::gen`
+    
+    // Docs (/w examples) describing the original `item`.
+    #[doc = #docs]
+    // The original `ìtem`.
+    #struct_original // Access through `#name::ty`
+}
+```
 
 
 # Struct example
