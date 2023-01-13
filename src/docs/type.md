@@ -2,6 +2,6 @@ Use `{name}` as a type.
 ```
 type {name} = {ty};
 
-{original}
+{source_code}
 ```
 [Read more about `{ty}`][{ty}]

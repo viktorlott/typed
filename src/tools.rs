@@ -1,53 +1,23 @@
 use ::rustfmt::{format_input, Input};
-use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens, TokenStreamExt};
-use syn::{Ident, Type, Field, parse_quote, DeriveInput};
-use std::{io::Sink, marker::PhantomData};
+use quote::{format_ident, ToTokens};
+use std::{io::Sink};
+use syn::{self, parse_quote, Field, Ident, Type};
 
-pub struct TypeDecl<'a> {
-    original: &'a str,
-    ident: Ident,
-    ty: Type,
-    _marker: PhantomData<fn(&'a ()) -> &'a ()>
-}
 
-impl<'a> TypeDecl<'a> {
-    pub fn new(original: &'a str, ident: Ident, ty: &'a Type) -> Self {
-        Self {
-            original,
-            ident,
-            ty: ty.clone(),
-            _marker: PhantomData
-        }
-    }
-}
-
-impl<'a> ToTokens for TypeDecl<'a> {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let original = self.original;
-        let ident = &self.ident;
-        let ty = &self.ty;
-
-        let docu = doc_type(ident, ty, original);
-        let ty_decl = quote!(#[doc = #docu] pub type #ident = #ty;);
-        tokens.append_all(ty_decl);
-    }
-}
-
-pub fn doc_type(name: &Ident, ty: &Type, original: &str) -> String {
+pub fn doc_type(name: &Ident, ty: &Type, source_code: &str) -> String {
     let name = name.to_string();
-    let ty = ty.to_token_stream().to_string().replace(" ", "");
+    let ty = ty.to_token_stream().to_string().replace(' ', "");
 
     format!(
         include_str!("docs/type.md"),
-        original = original,
+        source_code = source_code,
         name = name,
         ty = ty
     )
 }
-pub fn doc_field(name: &Ident, ty: &Type, parent: &str) -> String {
+fn doc_field(name: &Ident, ty: &Type, parent: &str) -> String {
     let name = name.to_string();
-    let ty = ty.to_token_stream().to_string().replace(" ", "");
+    let ty = ty.to_token_stream().to_string().replace(' ', "");
 
     format!(
         include_str!("docs/field.md"),
@@ -57,15 +27,13 @@ pub fn doc_field(name: &Ident, ty: &Type, parent: &str) -> String {
     )
 }
 
-pub fn doc_struct(name: &str, original: &str) -> String {
+pub fn doc_struct(name: &str, source_code: &str) -> String {
     format!(
         include_str!("docs/struct.md"),
         name = name,
-        original = original
+        source_code = source_code
     )
 }
-
-
 
 pub fn format_code(orig: String) -> String {
     format_input(Input::Text(orig), &<_>::default(), None::<&mut Sink>)
@@ -73,31 +41,19 @@ pub fn format_code(orig: String) -> String {
         .ok()
         .flatten()
         .map(|m| m.1.to_string())
-        .expect("Original input should be formatted")
+        .expect("source_code input should be formatted")
 }
 
-pub fn create_ident(i: usize) -> impl Fn() -> Ident  {
-    move || Ident::new(format!("ty_{i}").as_str(), proc_macro2::Span::call_site())
+pub fn create_ident(i: usize) -> impl Fn() -> Ident {
+    move || format_ident!("ty_{i}", span = proc_macro2::Span::call_site())
 }
 
 pub fn modify(field: &mut Field, parent: &str, i: usize) -> Ident {
     let ident = field.ident.clone().unwrap_or_else(create_ident(i));
-    let docu = doc_field(
-        &ident,
-        &field.ty,
-        parent,
-    );
+    let docu = doc_field(&ident, &field.ty, parent);
 
     field.vis = parse_quote!(pub);
     field.attrs.push(parse_quote!(#[doc = #docu]));
 
     ident
 }
-
-pub fn publicify(ast: &mut DeriveInput) {
-    ast.ident = parse_quote!(ty);
-    ast.vis = parse_quote!(pub);
-}
-
-
-

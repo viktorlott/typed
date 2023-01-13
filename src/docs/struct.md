@@ -1,6 +1,6 @@
 Use `{name}::ty` as a type.
 ```
-{original}
+{source_code}
 ```
 # Example
 ```

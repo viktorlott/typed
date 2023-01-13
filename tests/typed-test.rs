@@ -12,6 +12,9 @@ struct Container {
 #[type_it]
 struct Tuple(i32, i32);
 
+#[type_it]
+struct Tuple2<T>(i32, T);
+
 fn main() {
     let current: Container::current = 10;
     let buffer: Container::buffer = vec![current];
