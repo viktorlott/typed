@@ -64,18 +64,6 @@ trait Trait: Container::proto {
 }
 ```
 
-#### Current support:
-##### `struct`
-  - [x] static types
-  - [ ] generic types
-##### `enum`
-  - [ ] static types
-  - [ ] generic types
-##### `fn`
-  - [ ] static types
-  - [ ] generic types
-
-
 # Future plans 
 #### Renaming disassembler
 ```rust
