@@ -4,9 +4,11 @@ extern crate typer;
 use typer::type_it;
 
 #[type_it]
-struct Container {
-    current: i32,
-    buffer: Vec<i32>,
+struct Container<T> {
+    a: i32,
+    b: Vec<i32>,
+    c: Vec<T>,
+    d: T
 }
 
 #[type_it]
@@ -18,9 +20,11 @@ struct Tuple2<T>(i32, T);
 
 
 fn main() {
-    let current: Container::current = 10;
-    let buffer: Container::buffer = vec![current];
-    let container: Container::ty = Container::ty { current, buffer };
+    let a: Container::a = 10;
+    let b: Container::b = vec![a];
+    let c: <Container::ty<i64> as Container::gen>::c = vec![10];
+    let d: <Container::ty<i64> as Container::gen>::d = 10;
+    let container: Container::ty<i64> = Container::ty { a, b, c, d };
 
-    assert!(container.current == current);
+    assert!(container.a == a);
 }

@@ -172,6 +172,7 @@ impl ToTokens for TypeModuleInner {
             .iter()
             .filter_map(|t| t.has_gen.then(|| t.clone()))
             .collect();
+
         let struct_decl = &self.struct_decl;
         let generic_decl= &self.generic_decl;
 
@@ -221,7 +222,6 @@ impl ToTokens for TypeGeneric {
         if !assoc_binds_decls.is_empty() {
             bind_generic = Some(quote!(<#(#assoc_binds_decls,)*>));
         }
-
 
         tokens.append_all(quote!(
             pub trait #trait_ident {
