@@ -3,7 +3,6 @@ use quote::{format_ident, ToTokens};
 use std::{io::Sink};
 use syn::{self, parse_quote, Field, Ident, Type};
 
-
 pub fn doc_type(name: &Ident, ty: &Type, source_code: &str) -> String {
     let name = name.to_string();
     let ty = ty.to_token_stream().to_string().replace(' ', "");
@@ -48,7 +47,7 @@ pub fn create_ident(i: usize) -> impl Fn() -> Ident {
     move || format_ident!("ty_{i}", span = proc_macro2::Span::call_site())
 }
 
-pub fn modify(field: &mut Field, parent: &str, i: usize) -> Ident {
+pub fn publicify_and_docify(field: &mut Field, parent: &str, i: usize) -> Ident {
     let ident = field.ident.clone().unwrap_or_else(create_ident(i));
     let docu = doc_field(&ident, &field.ty, parent);
 

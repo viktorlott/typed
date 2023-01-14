@@ -1,18 +1,18 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
+use std::collections::HashSet;
 use syn::{
     self,
-    parse::Parse,
+    parse::{Parse, ParseStream},
     parse_quote, token,
     visit::{visit_type, visit_type_path, Visit},
     Attribute, Fields, Generics, Ident, Token, Type, Visibility,
 };
-use std::{collections::HashSet};
 
-use tools::{doc_struct, doc_type, format_code, modify};
+use tools::{doc_struct, doc_type, format_code, publicify_and_docify};
 
-#[path ="tools.rs"]
+#[path = "tools.rs"]
 mod tools;
 
 struct TypeModule {
@@ -23,8 +23,24 @@ struct TypeModule {
 }
 
 struct TypeModuleInner {
-    type_decls: Vec<TypeDecl>,
+    type_decls: Vec<TypeAlias>,
+    generic_decl: TypeGeneric,
     struct_decl: TypeStructure,
+}
+
+#[derive(Clone)]
+struct TypeAlias {
+    docs: Attribute,
+    ident: Ident,
+    ty: Type,
+    has_gen: bool,
+}
+
+struct TypeGeneric {
+    attrs: Vec<Attribute>,
+    ident: Ident,
+    generics: Generics,
+    assoc_decls: Vec<TypeAlias>,
 }
 
 struct TypeStructure {
@@ -37,17 +53,10 @@ struct TypeStructure {
     semi_colon: Option<Token![;]>,
 }
 
-struct TypeDecl {
-    docs: Attribute,
-    ident: Ident,
-    ty: Type,
-}
-
 struct Source {
     name: String,
     code: String,
 }
-
 
 struct FieldTypeGenerics(HashSet<Ident>);
 
@@ -67,11 +76,9 @@ impl<'ast> Visit<'ast> for FieldTypeGenerics {
     }
 }
 
-
 impl Parse for TypeModule {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
         let code = format_code(input.to_string());
-        println!("{}", code);
 
         let mut attrs: Vec<Attribute> = input.call(Attribute::parse_outer)?;
         let vis: Visibility = input.parse()?;
@@ -85,43 +92,43 @@ impl Parse for TypeModule {
             code,
         };
 
-        let mut type_decls: Vec<TypeDecl> = Vec::new();
-        let mut fields: Fields;
+        let mut type_decls: Vec<TypeAlias> = Vec::new();
 
-        if input.peek(token::Brace) {
-            fields = Fields::Named(input.parse()?);
-            type_decls = parse_type_decls(&mut fields, &generics, &source);
-        } else if input.peek(token::Paren) {
-            fields = Fields::Unnamed(input.parse()?);
-        } else {
-            fields = Fields::Unit;
-        }
+        let fields: Fields = parse_fields(input, |fields| {
+            type_decls = parse_type_decls(fields, &generics, &source)
+        })?;
 
-        let docs = doc_struct(
-            source.name.as_str(), 
-            source.code.as_str()
-        );
+        let struct_doc = doc_struct(source.name.as_str(), source.code.as_str());
 
-        attrs.push(parse_quote!(#[doc = #docs]));
-
+        attrs.push(parse_quote!(#[doc = #struct_doc]));
 
         if input.peek(Token![;]) {
             semi_colon = input.parse().ok();
         }
 
+        let ty_ident = format_ident!("ty", span = proc_macro2::Span::call_site());
         let struct_decl = TypeStructure {
             attrs: attrs.clone(),
             vis: parse_quote!(pub),
             struct_token,
-            ident: format_ident!("ty", span = proc_macro2::Span::call_site()),
-            generics,
-            fields: fields.clone(),
+            ident: ty_ident,
+            generics: generics.clone(),
+            fields,
             semi_colon,
         };
 
+        let gen_ident = format_ident!("gen", span = proc_macro2::Span::call_site());
+        let assoc_decls: Vec<TypeAlias> = type_decls.to_vec();
+        let generic_decl = TypeGeneric {
+            attrs: attrs.clone(),
+            ident: gen_ident,
+            generics,
+            assoc_decls,
+        };
 
         let inner = TypeModuleInner {
             type_decls,
+            generic_decl,
             struct_decl,
         };
 
@@ -134,15 +141,15 @@ impl Parse for TypeModule {
     }
 }
 
-
 impl ToTokens for TypeModule {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let attrs = &self.attrs;
-        let vis = &self.vis;
-        let ident = &self.ident;
-        let module_inner = &self.inner;
+        let TypeModule {
+            attrs,
+            vis,
+            ident,
+            inner: module_inner,
+        } = self;
 
-        
         let type_module = quote!(
             #[allow(non_snake_case)]
             #(#attrs)*
@@ -160,16 +167,74 @@ impl ToTokens for TypeModule {
 
 impl ToTokens for TypeModuleInner {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let type_delcs = &self.type_decls;
+        let type_delcs: Vec<TypeAlias> = self
+            .type_decls
+            .iter()
+            .filter_map(|t| t.has_gen.then(|| t.clone()))
+            .collect();
         let struct_decl = &self.struct_decl;
+        let generic_decl= &self.generic_decl;
 
         let inner_decls = quote!(
             #(#type_delcs)*
 
             #struct_decl
+            
+            #generic_decl
         );
 
         tokens.append_all(inner_decls)
+    }
+}
+
+impl ToTokens for TypeAlias {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        let TypeAlias {
+            docs, ident, ty, ..
+        } = self;
+
+        tokens.append_all(quote!(#docs pub type #ident = #ty;));
+    }
+}
+
+impl ToTokens for TypeGeneric {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        let trait_ident = &self.ident;
+        let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
+
+        let mut assoc_decls = Vec::<TokenStream2>::new();
+        let mut assoc_impl_decls = Vec::<TokenStream2>::new();
+        let mut assoc_binds_decls = Vec::<TokenStream2>::new();
+
+        for type_alias in self.assoc_decls.iter() {
+            let TypeAlias {
+                docs, ident, ty, ..
+            } = type_alias;
+
+            assoc_decls.push(quote!(#docs type #ident;));
+            assoc_impl_decls.push(quote!(#docs type #ident = #ty;));
+            assoc_binds_decls.push(quote!(#ident = Self::#ident))
+        }
+
+        let mut bind_generic: Option<TokenStream2> = None;
+
+        if !assoc_binds_decls.is_empty() {
+            bind_generic = Some(quote!(<#(#assoc_binds_decls,)*>));
+        }
+
+
+        tokens.append_all(quote!(
+            pub trait #trait_ident {
+                type __Bind: #trait_ident #bind_generic;
+
+                #(#assoc_decls)*
+            }
+
+            impl #impl_generics #trait_ident for ty #ty_generics #where_clause {
+                type __Bind = Self;
+                #(#assoc_impl_decls)*
+            }
+        ));
     }
 }
 
@@ -192,33 +257,42 @@ impl ToTokens for TypeStructure {
     }
 }
 
-impl ToTokens for TypeDecl {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let docs = &self.docs;
-        let ident = &self.ident;
-        let ty = &self.ty;
-        
-        tokens.append_all(quote!(#docs pub type #ident = #ty;));
-    }
-}
+impl TypeAlias {
+    pub fn new<'a>(source_code: &'a str, ident: &'a Ident, ty: &'a Type, has_gen: bool) -> Self {
+        let type_doc = doc_type(ident, ty, source_code);
 
-
-
-impl TypeDecl {
-    pub fn new<'a>(source_code: &'a str, ident: &'a Ident, ty: &'a Type) -> Self {
-        let docs = doc_type(ident, ty, source_code);
-        let docs: Attribute = parse_quote!(#[doc = #docs]);
+        let docs: Attribute = parse_quote!(#[doc = #type_doc]);
+        let ident = ident.clone();
+        let ty = ty.clone();
 
         Self {
             docs,
-            ident: ident.clone(),
-            ty: ty.clone(),
+            ident,
+            ty,
+            has_gen,
         }
     }
 }
 
-fn parse_type_decls(fields: &mut Fields, generics: &Generics, source: &Source) -> Vec<TypeDecl> {
-    let mut type_decls: Vec<TypeDecl> = Vec::new();
+fn parse_fields<F>(input: ParseStream, mut cb: F) -> syn::Result<Fields>
+where
+    F: FnMut(&mut Fields),
+{
+    if input.peek(token::Brace) {
+        let mut fields = Fields::Named(input.parse()?);
+        cb(&mut fields);
+        Ok(fields)
+    } else if input.peek(token::Paren) {
+        let mut fields = Fields::Unnamed(input.parse()?);
+        cb(&mut fields);
+        Ok(fields)
+    } else {
+        Ok(Fields::Unit)
+    }
+}
+
+fn parse_type_decls(fields: &mut Fields, generics: &Generics, source: &Source) -> Vec<TypeAlias> {
+    let mut type_decls: Vec<TypeAlias> = Vec::new();
 
     let param_generics = generics
         .type_params()
@@ -227,10 +301,12 @@ fn parse_type_decls(fields: &mut Fields, generics: &Generics, source: &Source) -
 
     for (index, field) in fields.iter_mut().enumerate() {
         let field_type_generics = FieldTypeGenerics::get_idents(&field.ty);
-        if param_generics.intersection(&field_type_generics.0).count() == 0 {
-            let field_ident = modify(field, source.name.as_str(), index);
-            type_decls.push(TypeDecl::new(source.code.as_str(), &field_ident, &field.ty));
-        }
+        let has_gen = param_generics.intersection(&field_type_generics.0).count() == 0;
+
+        let field_ident = publicify_and_docify(field, source.name.as_str(), index);
+        let type_decl = TypeAlias::new(source.code.as_str(), &field_ident, &field.ty, has_gen);
+
+        type_decls.push(type_decl);
     }
 
     type_decls
