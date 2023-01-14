@@ -6,7 +6,7 @@ mod builder;
 /// - *Every field should be documented so it's easier to know what is what.*
 /// 
 /// # Example
-/// ```
+/// ```no_run
 /// #[type_it]
 /// struct Containter<T> {
 ///     current: u8,
@@ -17,7 +17,7 @@ mod builder;
 /// struct Area(i32);
 /// ```
 /// - Will let you access the struct types as followed:
-/// ```
+/// ```no_run
 /// let current: Container::current = 10;
 /// let buffer: Container::buffer = vec![current];
 /// let another: <Container::ty<u8> as Container::proto>::another = 20;
@@ -29,7 +29,7 @@ mod builder;
 ///     };
 /// ```
 /// - It's also possible to use it as following:
-/// ```
+/// ```no_run
 /// trait Trait: Container::proto {
 ///     fn retrieve(&self) -> Container::proto::buffer;
 ///     fn extend(&mut self, val: Container::proto::another); 

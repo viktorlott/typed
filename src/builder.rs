@@ -15,6 +15,75 @@ use tools::{doc_struct, doc_type, format_code, publicify_and_docify};
 #[path = "tools.rs"]
 mod tools;
 
+/// Use `new!(..)` to construct `structs`. 
+/// - `clone[$ident,*]`  -> `$ident.clone(),*`
+/// - `string[$ident,*]` -> `$ident.to_string(),*`
+/// - `into[$ident,*]`   -> `$ident.into(),*`
+/// - `$ident($tt)`      -> `$ident: $tt`
+/// 
+/// # Example
+/// ```no_run
+/// struct TypeStructure {
+///     attrs: Vec<Attribute>,
+///     vis: Visibility,
+///     struct_token: Token![struct],
+///     ident: Ident,
+///     generics: Generics,
+///     fields: Fields,
+///     semi_colon: Option<Token![;]>,
+/// }
+/// 
+/// let attrs = ...;
+/// let generics ...;
+/// 
+/// let struct_decl = new!({
+///     clone[attrs, generics], 
+///     vis(parse_quote!(pub)),
+///     ident(format_ident!("ty", span = proc_macro2::Span::call_site())),
+///     struct_token,
+///     fields,
+///     semi_colon,
+/// }: TypeStructure);
+/// ```
+/// 
+macro_rules! new {
+    // Invoke syntax
+    ({ $($tail:tt)* } = $name:ident                                                  ) => { new!($name @ [] @ $($tail)*) };
+    ({ $($tail:tt)* }: $name:ident                                                   ) => { new!($name @ [] @ $($tail)*) };
+    ({ $($tail:tt)* } => $name:ident                                                 ) => { new!($name @ [] @ $($tail)*) };
+    ({ $($tail:tt)* } $name:ident                                                    ) => { new!($name @ [] @ $($tail)*) };
+
+    ($name:ident    { $($tail:tt)* }                                                 ) => { new!($name @ [] @ $($tail)*) };
+    ($name:ident => { $($tail:tt)* }                                                 ) => { new!($name @ [] @ $($tail)*) };
+    ($name:ident:   { $($tail:tt)* }                                                 ) => { new!($name @ [] @ $($tail)*) };
+    ($name:ident =  { $($tail:tt)* }                                                 ) => { new!($name @ [] @ $($tail)*) };
+
+    ($name:ident => $($tail:tt)*                                                     ) => { new!($name @ [] @ $($tail)*) };
+    ($name:ident:   $($tail:tt)*                                                     ) => { new!($name @ [] @ $($tail)*) };
+    ($name:ident =  $($tail:tt)*                                                     ) => { new!($name @ [] @ $($tail)*) };
+
+
+    // Grammer
+    ($name:ident @ [$($stored:tt)*] @ $(.)? into $(.)? [$($field:ident),*]     $(, $($tail:tt)*)?) => { new!($name @ [$(, $stored)* $($field: $field.into()),*] @ $($($tail)*)? ) };
+    ($name:ident @ [$($stored:tt)*] @ $(.)? string $(.)? [$($field:ident),*]   $(, $($tail:tt)*)?) => { new!($name @ [$(, $stored)* $($field: $field.to_string()),*] @ $($($tail)*)? ) };
+    ($name:ident @ [$($stored:tt)*] @ $(.)? str $(.)? [$($field:ident),*]      $(, $($tail:tt)*)?) => { new!($name @ [$(, $stored)* $($field: $field.as_str()),*] @ $($($tail)*)? ) };
+
+
+    ($name:ident @ [$($stored:tt)*] @ $(.)? clone $(.)? [$($field:ident),*]    $(, $($tail:tt)*)?) => { new!($name @ [$(, $stored)* $($field: $field.clone()),*] @ $($($tail)*)? ) };
+    ($name:ident @ [$($stored:tt)*] @ $field:ident: $field2:ident              $(, $($tail:tt)*)?) => { new!($name @ [$($stored)*, $field: $field2] @ $($($tail)*)? ) };
+
+    ($name:ident @ [$($stored:tt)*] @ $field:ident ($($sym:tt)*)               $(, $($tail:tt)*)?) => { new!($name @ [$field: $($sym)*, $($stored)*] @ $($($tail)*)? ) };
+
+    ($name:ident @ [$($stored:tt)*] @ $field:ident                             $(, $($tail:tt)*)?) => { new!($name @ [$field, $($stored)*] @ $($($tail)*)? ) };
+    ($name:ident @ [$($stored:tt)*] @ ..                                       $(, $($tail:tt)*)?) => { new!(@ [.., $($stored)*] @ $($($tail)*)? ) };
+    ($name:ident @ [$($stored:tt)*] @                                                            ) => { $name { $($stored)* } };
+
+}
+
+macro_rules! ident {
+    ($name:tt) => {format_ident!($name, span = proc_macro2::Span::call_site())};
+}
+
 struct TypeModule {
     attrs: Vec<Attribute>,
     vis: Visibility,
@@ -83,61 +152,44 @@ impl Parse for TypeModule {
         let mut attrs: Vec<Attribute> = input.call(Attribute::parse_outer)?;
         let vis: Visibility = input.parse()?;
         let struct_token: Token![struct] = input.parse()?;
-        let ident: Ident = input.parse()?;
+        let name: Ident = input.parse()?;
         let generics: Generics = input.parse()?;
-        let mut semi_colon: Option<Token![;]> = None;
-
-        let source = Source {
-            name: ident.to_string(),
-            code,
-        };
+        
+        let source = new!(Source => string[name], code);
 
         let mut type_decls: Vec<TypeAlias> = Vec::new();
-
+        
         let fields: Fields = parse_fields(input, |fields| {
             type_decls = parse_type_decls(fields, &generics, &source)
         })?;
 
         let struct_doc = doc_struct(source.name.as_str(), source.code.as_str());
-
         attrs.push(parse_quote!(#[doc = #struct_doc]));
 
-        if input.peek(Token![;]) {
-            semi_colon = input.parse().ok();
-        }
+        let struct_decl = new!({
+            clone[attrs, generics],
+            vis(parse_quote!(pub)),
+            ident(ident!("ty")),
+            semi_colon(input.peek(Token![;]).then(|| input.parse().ok()).flatten()),
+            struct_token, 
+            fields, 
+        }: TypeStructure);
 
-        let ty_ident = format_ident!("ty", span = proc_macro2::Span::call_site());
-        let struct_decl = TypeStructure {
-            attrs: attrs.clone(),
-            vis: parse_quote!(pub),
-            struct_token,
-            ident: ty_ident,
-            generics: generics.clone(),
-            fields,
-            semi_colon,
-        };
 
-        let gen_ident = format_ident!("gen", span = proc_macro2::Span::call_site());
-        let assoc_decls: Vec<TypeAlias> = type_decls.to_vec();
-        let generic_decl = TypeGeneric {
-            attrs: attrs.clone(),
-            ident: gen_ident,
+        let generic_decl = new!({
+            clone[attrs],
+            ident(ident!("gen")),
+            assoc_decls(type_decls.to_vec()),
             generics,
-            assoc_decls,
-        };
+        }: TypeGeneric);
 
-        let inner = TypeModuleInner {
-            type_decls,
-            generic_decl,
-            struct_decl,
-        };
-
-        Ok(Self {
+        Ok(new!({
             attrs,
             vis,
-            ident,
-            inner,
-        })
+            ident(name),
+            inner(new!({ type_decls, generic_decl, struct_decl }: TypeModuleInner))
+        }: Self))
+
     }
 }
 
@@ -174,13 +226,13 @@ impl ToTokens for TypeModuleInner {
             .collect();
 
         let struct_decl = &self.struct_decl;
-        let generic_decl= &self.generic_decl;
+        let generic_decl = &self.generic_decl;
 
         let inner_decls = quote!(
             #(#type_delcs)*
 
             #struct_decl
-            
+
             #generic_decl
         );
 
@@ -260,17 +312,10 @@ impl ToTokens for TypeStructure {
 impl TypeAlias {
     pub fn new<'a>(source_code: &'a str, ident: &'a Ident, ty: &'a Type, has_gen: bool) -> Self {
         let type_doc = doc_type(ident, ty, source_code);
-
-        let docs: Attribute = parse_quote!(#[doc = #type_doc]);
-        let ident = ident.clone();
-        let ty = ty.clone();
-
-        Self {
-            docs,
-            ident,
-            ty,
-            has_gen,
-        }
+        new!({ 
+            clone[ident, ty, has_gen],
+            docs(parse_quote!(#[doc = #type_doc])), 
+        } => Self)
     }
 }
 
@@ -313,7 +358,9 @@ fn parse_type_decls(fields: &mut Fields, generics: &Generics, source: &Source) -
 }
 
 pub fn codegen(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let type_module = syn::parse::<TypeModule>(item).unwrap();
-    let output = quote!(#type_module);
-    output.into()
+    syn::parse::<TypeModule>(item)
+        .unwrap()
+        .to_token_stream()
+        .into()
 }
+
