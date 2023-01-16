@@ -246,7 +246,7 @@ impl ToTokens for TypeStructure {
 
 impl TypeAlias {
     pub fn new<'a>(source_code: &'a str, ident: &'a Ident, ty: &'a Type, generics: Option<Generics>) -> Self {
-        let type_doc = doc_type(ident, ty, source_code);
+        let type_doc = doc_type(ident, ty, &generics, source_code);
 
         new!({ 
             clone[ident, ty, generics],

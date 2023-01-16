@@ -1,5 +1,5 @@
 use ::rustfmt::{format_input, Input};
-use quote::{format_ident, ToTokens};
+use quote::{format_ident, ToTokens, quote};
 use std::{io::Sink, collections::HashSet};
 use syn::{self, parse_quote, Field, Ident, Type, Generics};
 
@@ -92,15 +92,17 @@ pub(crate) use new;
 pub(crate) use ident;
 
 
-pub fn doc_type(name: &Ident, ty: &Type, source_code: &str) -> String {
+pub fn doc_type(name: &Ident, ty: &Type, generics: &Option<Generics>, source_code: &str) -> String {
     let name = name.to_string();
     let ty = ty.to_token_stream().to_string().replace(' ', "");
+    let generics = quote!(#generics).to_string();
 
     format!(
         include_str!("docs/type.md"),
         source_code = source_code,
         name = name,
-        ty = ty
+        ty = ty,
+        generics = generics
     )
 }
 fn doc_field(name: &Ident, ty: &Type, parent: &str) -> String {
