@@ -28,7 +28,7 @@ use syn::{self, parse_quote, Field, Ident, Type, Generics};
 /// let struct_decl = new!({
 ///     clone[attrs, generics], 
 ///     vis(parse_quote!(pub)),
-///     ident(format_ident!("ty", span = proc_macro2::Span::call_site())),
+///     ident(format_ident!("core", span = proc_macro2::Span::call_site())),
 ///     struct_token,
 ///     fields,
 ///     semi_colon,
@@ -53,23 +53,39 @@ macro_rules! new {
 
 
     // Grammer
-    ($name:ident [$($stored:tt)*] $(.)? into $(.)? [$($field:ident),*]     $(, $($tail:tt)*)?) => { new!($name [$(, $stored)* $($field: $field.into()),*] $($($tail)*)? ) };
-    ($name:ident [$($stored:tt)*] $(.)? string $(.)? [$($field:ident),*]   $(, $($tail:tt)*)?) => { new!($name [$(, $stored)* $($field: $field.to_string()),*] $($($tail)*)? ) };
-    ($name:ident [$($stored:tt)*] $(.)? str $(.)? [$($field:ident),*]      $(, $($tail:tt)*)?) => { new!($name [$(, $stored)* $($field: $field.as_str()),*] $($($tail)*)? ) };
+    ($name:ident [$($stored:tt)*] $(.)? into $(.)? [$($field:ident),*]     $(, $($tail:tt)*)?) 
+        => { new!($name [$(, $stored)* $($field: $field.into()),*] $($($tail)*)? ) };
 
+    ($name:ident [$($stored:tt)*] $(.)? string $(.)? [$($field:ident),*]   $(, $($tail:tt)*)?) 
+        => { new!($name [$(, $stored)* $($field: $field.to_string()),*] $($($tail)*)? ) };
 
-    ($name:ident [$($stored:tt)*] $(.)? clone $(.)? [$($field:ident),*]    $(, $($tail:tt)*)?) => { new!($name [$(, $stored)* $($field: $field.clone()),*] $($($tail)*)? ) };
-    ($name:ident [$($stored:tt)*] $field:ident: $field2:ident              $(, $($tail:tt)*)?) => { new!($name [$($stored)*, $field: $field2] $($($tail)*)? ) };
+    ($name:ident [$($stored:tt)*] $(.)? str $(.)? [$($field:ident),*]      $(, $($tail:tt)*)?) 
+        => { new!($name [$(, $stored)* $($field: $field.as_str()),*] $($($tail)*)? ) };
 
-    ($name:ident [$($stored:tt)*] $field:ident ($($sym:tt)*)               $(, $($tail:tt)*)?) => { new!($name [$field: $($sym)*, $($stored)*] $($($tail)*)? ) };
+    ($name:ident [$($stored:tt)*] $(.)? clone $(.)? [$($field:ident),*]    $(, $($tail:tt)*)?) 
+        => { new!($name [$(, $stored)* $($field: $field.clone()),*] $($($tail)*)? ) };
 
-    ($name:ident [$($stored:tt)*] $field:ident                             $(, $($tail:tt)*)?) => { new!($name [$field, $($stored)*] $($($tail)*)? ) };
-    ($name:ident [$($stored:tt)*] ..                                       $(, $($tail:tt)*)?) => { new!([.., $($stored)*] $($($tail)*)? ) };
-    ($name:ident [$($stored:tt)*]                                                            ) => { $name { $($stored)* } };
+    ($name:ident [$($stored:tt)*] $(.)? clone $(.)? [$($field:ident as $alias:ident),*]    $(, $($tail:tt)*)?) 
+        => { new!($name [$(, $stored)* $($alias: $field.clone()),*] $($($tail)*)? ) };
+
+    ($name:ident [$($stored:tt)*] $field:ident: $field2:ident              $(, $($tail:tt)*)?) 
+        => { new!($name [$($stored)*, $field: $field2] $($($tail)*)? ) };
+
+    ($name:ident [$($stored:tt)*] $field:ident ($($sym:tt)*)               $(, $($tail:tt)*)?) 
+        => { new!($name [$field: $($sym)*, $($stored)*] $($($tail)*)? ) };
+
+    ($name:ident [$($stored:tt)*] $field:ident                             $(, $($tail:tt)*)?) 
+        => { new!($name [$field, $($stored)*] $($($tail)*)? ) };
+
+    ($name:ident [$($stored:tt)*] ..                                       $(, $($tail:tt)*)?) 
+        => { new!([.., $($stored)*] $($($tail)*)? ) };
+
+    ($name:ident [$($stored:tt)*]                                                            ) 
+        => { $name { $($stored)* } };
 }
 
 macro_rules! ident {
-    ($name:tt) => {format_ident!($name, span = proc_macro2::Span::call_site())};
+    ($name:tt) => { format_ident!($name, span = proc_macro2::Span::call_site()) };
 }
 
 pub(crate) use new;

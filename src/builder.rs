@@ -12,6 +12,7 @@ use syn::{
 };
 
 
+
 struct TypeModule {
     attrs: Vec<Attribute>,
     vis: Visibility,
@@ -30,7 +31,7 @@ struct TypeAlias {
     docs: Attribute,
     ident: Ident,
     ty: Type,
-    has_gen: bool,
+    generics: Option<Generics>,
 }
 
 struct TypeGeneric {
@@ -79,17 +80,16 @@ impl Parse for TypeModule {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let code = format_code(input.to_string());
 
-
         let mut attrs: Vec<Attribute> = input.call(Attribute::parse_outer)?;
         let vis: Visibility = input.parse()?;
         let struct_token: Token![struct] = input.parse()?;
         let name: Ident = input.parse()?;
         let generics: Generics = input.parse()?;
-        
+
         let source = new!(Source => string[name], code);
 
         let mut type_decls: Vec<TypeAlias> = Vec::new();
-        
+
         let fields: Fields = parse_fields(input, |fields| 
             type_decls = parse_type_decls(fields, &generics, &source)
         )?;
@@ -97,19 +97,21 @@ impl Parse for TypeModule {
         let struct_doc = doc_struct(source.name.as_str(), source.code.as_str());
         attrs.push(parse_quote!(#[doc = #struct_doc]));
 
+        let ident = ident!("core");
+        let semi_colon = input.peek(Token![;]).then(|| input.parse().ok()).flatten();
+
         let struct_decl = new!({
-            clone[attrs, generics],
+            clone[attrs, generics, ident],
             vis(parse_quote!(pub)),
-            ident(ident!("core")),
-            semi_colon(input.peek(Token![;]).then(|| input.parse().ok()).flatten()),
+            semi_colon,
             struct_token, 
             fields,
         }: TypeStructure);
 
         let generic_decl = new!({
             clone[attrs],
+            type_struct_ident(ident),
             ident(ident!("protocol")),
-            type_struct_ident(ident!("core")),
             assoc_decls(type_decls.to_vec()),
             generics,
         }: TypeGeneric);
@@ -120,7 +122,6 @@ impl Parse for TypeModule {
             ident(name),
             inner(new!({ type_decls, generic_decl, struct_decl }: TypeModuleInner))
         }: Self))
-
     }
 }
 
@@ -149,11 +150,7 @@ impl ToTokens for TypeModule {
 
 impl ToTokens for TypeModuleInner {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let type_decls: Vec<TypeAlias> = self
-            .type_decls
-            .iter()
-            .filter_map(|t| t.has_gen.then(|| t.clone()))
-            .collect();
+        let type_decls: &Vec<TypeAlias> = &self.type_decls;
 
         let type_decls = quote!(#(#type_decls)*);
 
@@ -161,6 +158,7 @@ impl ToTokens for TypeModuleInner {
         let generic_decl = &self.generic_decl;
 
         let inner_decls = quote!(
+            pub mod fields { #type_decls }
             #type_decls
 
             #struct_decl
@@ -178,10 +176,10 @@ impl ToTokens for TypeAlias {
             docs, 
             ident, 
             ty, 
-            ..
+            generics
         } = self;
 
-        tokens.append_all(quote!(#docs pub type #ident = #ty;));
+        tokens.append_all(quote!( #[allow(type_alias_bounds)] #docs pub type #ident #generics = #ty;));
     }
 }
 
@@ -214,7 +212,6 @@ impl ToTokens for TypeGeneric {
         tokens.append_all(quote!(
             pub trait #trait_ident {
                 type __Core: #trait_ident #bind_generic;
-
                 #(#assoc_decls)*
             }
 
@@ -248,10 +245,11 @@ impl ToTokens for TypeStructure {
 }
 
 impl TypeAlias {
-    pub fn new<'a>(source_code: &'a str, ident: &'a Ident, ty: &'a Type, has_gen: bool) -> Self {
+    pub fn new<'a>(source_code: &'a str, ident: &'a Ident, ty: &'a Type, generics: Option<Generics>) -> Self {
         let type_doc = doc_type(ident, ty, source_code);
+
         new!({ 
-            clone[ident, ty, has_gen],
+            clone[ident, ty, generics],
             docs(parse_quote!(#[doc = #type_doc])), 
         } => Self)
     }
@@ -281,10 +279,20 @@ fn parse_type_decls(fields: &mut Fields, generics: &Generics, source: &Source) -
 
     for (index, field) in fields.iter_mut().enumerate() {
         let field_type_generics = FieldTypeGenerics::get_idents(&field.ty);
-        let has_gen = param_generics.intersection(&field_type_generics.0).count() == 0;
+        // FIXME: Umm, fix this shit please
+        let matches: Vec<_> = param_generics.intersection(&field_type_generics.0).collect();
+        let hs: HashSet<_> = matches.clone().into_iter().collect();
+        let gens: Vec<_> = generics.type_params().filter_map(|p| hs.contains(&p.ident).then_some(p)).collect();
+
 
         let field_ident = publicify_and_docify(field, source.name.as_str(), index);
-        let type_decl = TypeAlias::new(source.code.as_str(), &field_ident, &field.ty, has_gen);
+        let type_decl = TypeAlias::new(source.code.as_str(), &field_ident, &field.ty, {
+            if matches.is_empty() {
+                None
+            } else {
+                Some(parse_quote!(<#(#gens),*>))
+            }
+        });
 
         type_decls.push(type_decl);
     }
