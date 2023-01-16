@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 
-extern crate typed;
-use typed::type_it;
+extern crate rust_typed;
+use rust_typed::type_it;
 
 #[type_it]
 struct Container<C: Clone, T = i64> {
