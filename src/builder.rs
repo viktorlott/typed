@@ -248,10 +248,7 @@ impl TypeAlias {
     pub fn new<'a>(source_code: &'a str, ident: &'a Ident, ty: &'a Type, generics: Option<Generics>) -> Self {
         let type_doc = doc_type(ident, ty, &generics, source_code);
 
-        new!({ 
-            clone[ident, ty, generics],
-            docs(parse_quote!(#[doc = #type_doc])), 
-        } => Self)
+        new!({ clone[ident, ty, generics], docs(parse_quote!(#[doc = #type_doc])) } => Self)
     }
 }
 
@@ -271,7 +268,7 @@ where
         Ok(Fields::Unit)
     }
 }
-
+// FIXME: Refactor this please
 fn parse_type_decls(fields: &mut Fields, generics: &Generics, source: &Source) -> Vec<TypeAlias> {
     let mut type_decls: Vec<TypeAlias> = Vec::new();
 
