@@ -1,5 +1,6 @@
 use proc_macro::TokenStream;
 
+mod tools;
 mod builder;
 
 /// Use `type_it` as a proc-macro.
@@ -20,9 +21,9 @@ mod builder;
 /// ```no_run
 /// let current: Container::current = 10;
 /// let buffer: Container::buffer = vec![current];
-/// let another: <Container::ty<u8> as Container::proto>::another = 20;
-/// let container: Container::ty<u8> = 
-///     Container::ty {
+/// let another: <Container::core<u8> as Container::proto>::another = 20;
+/// let container: Container::core<u8> = 
+///     Container::core {
 ///         current,
 ///         buffer,
 ///         another
@@ -30,7 +31,7 @@ mod builder;
 /// ```
 /// - It's also possible to use it as following:
 /// ```no_run
-/// trait Trait: Container::proto {
+/// trait Trait: Container::protocol {
 ///     fn retrieve(&self) -> Container::proto::buffer;
 ///     fn extend(&mut self, val: Container::proto::another); 
 /// }

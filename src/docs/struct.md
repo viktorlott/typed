@@ -1,11 +1,11 @@
-Use `{name}::ty` as a type.
+Use `{name}::core` as a type.
 ```no_run
 {source_code}
 ```
 # Example
 ```no_run
-fn get(input: {name}::ty) -> {name}::ty {{
-    let field: {name}::ty = input;
+fn get(input: {name}::core) -> {name}::core {{
+    let field: {name}::core = input;
     input
 }}
 ```

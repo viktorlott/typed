@@ -1,5 +1,5 @@
 
-`Typed` is a procedural macro that is used for disassembling `structs`, `enums` and `fns` into their inner `type` components that are then accompanied with documentation and examples. The `Typed` structures will be wrapped into a module and reassigned with a name (default `ty`), this also goes for the `static` and `generic` fields.
+`Typed` is a procedural macro that is used for disassembling `structs`, `enums` and `fns` into their inner `type` components that are then accompanied with documentation and examples. The `Typed` structures will be wrapped into a module and reassigned with a name (default `core`), this also goes for the `static` and `generic` fields.
 
 
 #### *Project is still under development*
@@ -28,7 +28,7 @@ pub mod #name {
     // Docs (/w examples) describing the original `item`.
     #[doc = #docs]
     // The original `ìtem`.
-    #struct_original // Access through `#name::ty`
+    #struct_original // Access through `#name::core`
 }
 ```
 
@@ -48,9 +48,9 @@ struct Area(i32);
 ```rust
 let current: Container::current = 10;
 let buffer: Container::buffer = vec![current];
-let another: <Container::ty<u8> as Container::proto>::another = 20;
-let container: Container::ty<u8> = 
-    Container::ty {
+let another: <Container::core<u8> as Container::protocol>::another = 20;
+let container: Container::core<u8> = 
+    Container::core {
         current,
         buffer,
         another
@@ -58,9 +58,9 @@ let container: Container::ty<u8> =
 ```
 - It's also possible to use it as following:
 ```rust
-trait Trait: Container::proto {
-    fn retrieve(&self) -> Container::proto::buffer;
-    fn extend(&mut self, val: Container::proto::another); 
+trait Trait: Container::protocol {
+    fn retrieve(&self) -> Container::protocol::buffer;
+    fn extend(&mut self, val: Container::protocol::another); 
 }
 ```
 
@@ -81,7 +81,7 @@ fn main() {
         another: 20,
     }
     
-    let y: MContainer::ty<i32> = x;
+    let y: MContainer::core<i32> = x;
 }
 ```
 
