@@ -2,7 +2,7 @@ use crate::tools::{doc_struct, doc_type, format_code, publicify_and_docify, get_
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
-use std::collections::HashSet;
+use std::{collections::HashSet};
 use syn::{
     self,
     parse::{Parse, ParseStream},
@@ -58,7 +58,7 @@ struct Source {
 
 struct FieldTypeGenerics(HashSet<Ident>);
 
-impl FieldTypeGenerics {
+impl From<&Type> for FieldTypeGenerics {
     fn from(ty: &Type) -> Self {
         let mut field_type_generics = FieldTypeGenerics(<_>::default());
         visit_type(&mut field_type_generics, ty);
@@ -74,10 +74,16 @@ impl<'ast> Visit<'ast> for FieldTypeGenerics {
     }
 }
 
+impl TypeAlias {
+    pub fn new<'a>(source_code: &'a str, ident: &'a Ident, ty: &'a Type, generics: Option<Generics>) -> Self {
+        let type_doc = doc_type(ident, ty, &generics, source_code);
+        new!({ clone[ident, ty, generics], docs(parse_quote!(#[doc = #type_doc])) } => Self)
+    }
+}
+
 impl Parse for TypeModule {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let code = format_code(input.to_string());
-        let ident = ident!("core");
 
         let mut attrs: Vec<Attribute> = input.call(Attribute::parse_outer)?;
         let vis: Visibility = input.parse()?;
@@ -85,7 +91,6 @@ impl Parse for TypeModule {
         let name: Ident = input.parse()?;
         let generics: Generics = input.parse()?;
 
-        
         let source = new!(Source => string[name], code);
 
         let struct_doc = doc_struct(
@@ -100,8 +105,11 @@ impl Parse for TypeModule {
             type_decls = parse_type_decls(fields, &generics, &source)
         )?;
 
-        let semi_colon = input.peek(Token![;]).then(|| input.parse().ok()).flatten();
+        let semi_colon = input.peek(Token![;])
+            .then(|| input.parse().ok())
+            .flatten();
 
+        let ident = ident!("core");
         let struct_decl = new!({
             clone[attrs, generics, ident],
             vis(parse_quote!(pub)),
@@ -185,7 +193,10 @@ impl ToTokens for TypeAlias {
             generics
         } = self;
 
-        let type_alias = quote!( #[allow(type_alias_bounds)] #docs pub type #ident #generics = #ty;);
+        let type_alias = quote!( 
+            #[allow(type_alias_bounds)] #docs 
+            pub type #ident #generics = #ty;
+        );
 
         tokens.append_all(type_alias);
     }
@@ -205,14 +216,7 @@ impl ToTokens for TypeGeneric {
         let mut assoc_impl_decls = Vec::<TokenStream2>::new();
         let mut assoc_binds_decls = Vec::<TokenStream2>::new();
 
-        for type_alias in self.assoc_decls.iter() {
-            let TypeAlias {
-                docs, 
-                ident, 
-                ty, 
-                ..
-            } = type_alias;
-
+        for TypeAlias { docs, ident, ty, .. } in self.assoc_decls.iter() {
             assoc_decls.push(quote!(#docs type #ident;));
             assoc_impl_decls.push(quote!(#docs type #ident = #ty;));
             assoc_binds_decls.push(quote!(#ident = Self::#ident))
@@ -256,13 +260,6 @@ impl ToTokens for TypeStructure {
     }
 }
 
-impl TypeAlias {
-    pub fn new<'a>(source_code: &'a str, ident: &'a Ident, ty: &'a Type, generics: Option<Generics>) -> Self {
-        let type_doc = doc_type(ident, ty, &generics, source_code);
-
-        new!({ clone[ident, ty, generics], docs(parse_quote!(#[doc = #type_doc])) } => Self)
-    }
-}
 
 fn parse_fields<F>(input: ParseStream, mut cb: F) -> syn::Result<Fields>
 where

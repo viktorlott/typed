@@ -127,10 +127,10 @@ pub fn doc_struct(name: &str, source_code: &str) -> String {
 
 pub fn format_code(orig: String) -> String {
     format_input(Input::Text(orig), &<_>::default(), None::<&mut Sink>)
-        .map(|res| res.1.into_iter().next())
+        .map(|(_, v, _)| v.into_iter().next())
         .ok()
         .flatten()
-        .map(|m| m.1.to_string())
+        .map(|(_, m)| m.to_string())
         .expect("source_code input should be formatted")
 }
 
