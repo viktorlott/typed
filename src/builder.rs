@@ -11,8 +11,6 @@ use syn::{
     Attribute, Fields, Generics, Ident, Token, Type, Visibility,
 };
 
-
-
 struct TypeModule {
     attrs: Vec<Attribute>,
     vis: Visibility,
@@ -61,7 +59,7 @@ struct Source {
 struct FieldTypeGenerics(HashSet<Ident>);
 
 impl FieldTypeGenerics {
-    fn get_idents(ty: &Type) -> Self {
+    fn from(ty: &Type) -> Self {
         let mut field_type_generics = FieldTypeGenerics(<_>::default());
         visit_type(&mut field_type_generics, ty);
         field_type_generics
@@ -79,6 +77,7 @@ impl<'ast> Visit<'ast> for FieldTypeGenerics {
 impl Parse for TypeModule {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let code = format_code(input.to_string());
+        let ident = ident!("core");
 
         let mut attrs: Vec<Attribute> = input.call(Attribute::parse_outer)?;
         let vis: Visibility = input.parse()?;
@@ -86,18 +85,21 @@ impl Parse for TypeModule {
         let name: Ident = input.parse()?;
         let generics: Generics = input.parse()?;
 
+        
         let source = new!(Source => string[name], code);
 
-        let mut type_decls: Vec<TypeAlias> = Vec::new();
+        let struct_doc = doc_struct(
+            source.name.as_str(), 
+            source.code.as_str()
+        );
 
+        attrs.push(parse_quote!(#[doc = #struct_doc]));
+
+        let mut type_decls: Vec<TypeAlias> = Vec::new();
         let fields: Fields = parse_fields(input, |fields| 
             type_decls = parse_type_decls(fields, &generics, &source)
         )?;
 
-        let struct_doc = doc_struct(source.name.as_str(), source.code.as_str());
-        attrs.push(parse_quote!(#[doc = #struct_doc]));
-
-        let ident = ident!("core");
         let semi_colon = input.peek(Token![;]).then(|| input.parse().ok()).flatten();
 
         let struct_decl = new!({
@@ -120,7 +122,11 @@ impl Parse for TypeModule {
             attrs,
             vis,
             ident(name),
-            inner(new!({ type_decls, generic_decl, struct_decl }: TypeModuleInner))
+            inner(new!({ 
+                type_decls, 
+                generic_decl, 
+                struct_decl 
+            }: TypeModuleInner))
         }: Self))
     }
 }
@@ -153,16 +159,16 @@ impl ToTokens for TypeModuleInner {
         let type_decls: &Vec<TypeAlias> = &self.type_decls;
 
         let type_decls = quote!(#(#type_decls)*);
-
         let struct_decl = &self.struct_decl;
         let generic_decl = &self.generic_decl;
 
         let inner_decls = quote!(
-            pub mod fields { #type_decls }
+            pub mod fields { 
+                #type_decls 
+            }
+
             #type_decls
-
             #struct_decl
-
             #generic_decl
         );
 
@@ -179,13 +185,19 @@ impl ToTokens for TypeAlias {
             generics
         } = self;
 
-        tokens.append_all(quote!( #[allow(type_alias_bounds)] #docs pub type #ident #generics = #ty;));
+        let type_alias = quote!( #[allow(type_alias_bounds)] #docs pub type #ident #generics = #ty;);
+
+        tokens.append_all(type_alias);
     }
 }
 
 impl ToTokens for TypeGeneric {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let TypeGeneric { ident: trait_ident, type_struct_ident , .. } = self;
+        let TypeGeneric { 
+            ident: trait_ident, 
+            type_struct_ident , 
+            .. 
+        } = self;
 
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
 
@@ -195,7 +207,10 @@ impl ToTokens for TypeGeneric {
 
         for type_alias in self.assoc_decls.iter() {
             let TypeAlias {
-                docs, ident, ty, ..
+                docs, 
+                ident, 
+                ty, 
+                ..
             } = type_alias;
 
             assoc_decls.push(quote!(#docs type #ident;));
@@ -203,11 +218,8 @@ impl ToTokens for TypeGeneric {
             assoc_binds_decls.push(quote!(#ident = Self::#ident))
         }
 
-        let mut bind_generic: Option<TokenStream2> = None;
-
-        if !assoc_binds_decls.is_empty() {
-            bind_generic = Some(quote!(<#(#assoc_binds_decls,)*>));
-        }
+        let bind_generic: Option<TokenStream2> = (!assoc_binds_decls.is_empty())
+            .then(|| quote!(<#(#assoc_binds_decls,)*>));
 
         tokens.append_all(quote!(
             pub trait #trait_ident {
@@ -268,28 +280,36 @@ where
         Ok(Fields::Unit)
     }
 }
-// FIXME: Refactor this please
+// FIXME: Refactor this shit
 fn parse_type_decls(fields: &mut Fields, generics: &Generics, source: &Source) -> Vec<TypeAlias> {
-    let mut type_decls: Vec<TypeAlias> = Vec::new();
+    let mut type_decls = Vec::<TypeAlias>::new();
 
     let param_generics = get_generic_idents(generics);
 
     for (index, field) in fields.iter_mut().enumerate() {
-        let field_type_generics = FieldTypeGenerics::get_idents(&field.ty);
-        // FIXME: Umm, fix this shit please
-        let matches: Vec<_> = param_generics.intersection(&field_type_generics.0).collect();
-        let hs: HashSet<_> = matches.clone().into_iter().collect();
-        let gens: Vec<_> = generics.type_params().filter_map(|p| hs.contains(&p.ident).then_some(p)).collect();
-
-
-        let field_ident = publicify_and_docify(field, source.name.as_str(), index);
-        let type_decl = TypeAlias::new(source.code.as_str(), &field_ident, &field.ty, {
-            if matches.is_empty() {
-                None
-            } else {
-                Some(parse_quote!(<#(#gens),*>))
+        let field_type_generics = FieldTypeGenerics::from(&field.ty);
+        let gens_matches: HashSet<_> = param_generics.intersection(&field_type_generics.0).collect();
+        let field_ident: Ident = publicify_and_docify(field, source.name.as_str(), index);
+        
+        let type_decl = TypeAlias::new(
+            source.code.as_str(), 
+            &field_ident, 
+            &field.ty, 
+            {
+                if gens_matches.is_empty() {
+                    None
+                } else {
+                    let gens: Vec<_> = generics
+                        .type_params()
+                        .filter_map(|p| 
+                            gens_matches
+                                .contains(&p.ident)
+                                .then_some(p))
+                        .collect();
+                    Some(parse_quote!(<#(#gens),*>))
+                }
             }
-        });
+        );
 
         type_decls.push(type_decl);
     }

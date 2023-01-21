@@ -21,7 +21,7 @@ mod builder;
 /// ```no_run
 /// let current: Container::current = 10;
 /// let buffer: Container::buffer = vec![current];
-/// let another: <Container::core<u8> as Container::proto>::another = 20;
+/// let another: <Container::core<u8> as Container::protocol>::another = 20;
 /// let container: Container::core<u8> = 
 ///     Container::core {
 ///         current,
@@ -32,8 +32,8 @@ mod builder;
 /// - It's also possible to use it as following:
 /// ```no_run
 /// trait Trait: Container::protocol {
-///     fn retrieve(&self) -> Container::proto::buffer;
-///     fn extend(&mut self, val: Container::proto::another); 
+///     fn retrieve(&self) -> Container::protocol::buffer;
+///     fn extend(&mut self, val: Container::protocol::another); 
 /// }
 /// ```
 /// 
