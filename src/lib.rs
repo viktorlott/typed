@@ -1,20 +1,22 @@
+#![doc = include_str!("../README.md")]
+
 use proc_macro::TokenStream;
 
-mod tools;
 mod builder;
+mod tools;
 
-/// Use `type_it` as a proc-macro.
+/// Use `dismantle` as a proc-macro.
 /// - *Every field should be documented so it's easier to know what is what.*
-/// 
+///
 /// # Example
 /// ```no_run
-/// #[type_it]
+/// #[dismantle]
 /// struct Containter<T> {
 ///     current: u8,
 ///     buffer: Vec<u8>,
 ///     another: T,
 /// }
-/// #[type_it]
+/// #[dismantle]
 /// struct Area(i32);
 /// ```
 /// - Will let you access the struct types as followed:
@@ -22,7 +24,7 @@ mod builder;
 /// let current: Container::current = 10;
 /// let buffer: Container::buffer = vec![current];
 /// let another: <Container::core<u8> as Container::protocol>::another = 20;
-/// let container: Container::core<u8> = 
+/// let container: Container::core<u8> =
 ///     Container::core {
 ///         current,
 ///         buffer,
@@ -33,13 +35,11 @@ mod builder;
 /// ```no_run
 /// trait Trait: Container::protocol {
 ///     fn retrieve(&self) -> Container::protocol::buffer;
-///     fn extend(&mut self, val: Container::protocol::another); 
+///     fn extend(&mut self, val: Container::protocol::another);
 /// }
 /// ```
-/// 
+///
 #[proc_macro_attribute]
-pub fn type_it(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn dismantle(_attr: TokenStream, item: TokenStream) -> TokenStream {
     builder::codegen(_attr, item)
 }
-
-

@@ -1,19 +1,62 @@
-# rust-typed
+# Dismantler
 
-`Typed` is a procedural macro that is used for disassembling `structs` and `fns` into their inner `type` components that are then accompanied with documentation and examples. The `Typed` structures will be wrapped into a module and reassigned with a name (default `core`), this also goes for the `static` and `generic` fields.
+[<img alt="github" src="https://img.shields.io/github/languages/code-size/viktorlott/typed?style=flat-square&logo=github" height="20">](https://github.com/viktorlott/typed)
+[<img alt="crates.io" src="https://img.shields.io/crates/v/dismantler?style=flat-square&logo=rust" height="20">](https://crates.io/crates/dismantle)
 
 
-#### *Project is still under development*
+`Dismantler` is a procedural macro that is used for disassembling `structs` and `fns` into their inner `type` components that are then accompanied with documentation and examples. The `Dismantler` structures will be wrapped into a module and reassigned with a name (default `core`), this also goes for the `static` and `generic` fields.
 
-# Struct example
+
+#### **Project is still under development**
+
+## Examples
+```toml
+[dependencies]
+dismantler = "0.0.1"
+```
+
 ```rust
-#[type_it]
+use dismantler::dismantle;
+
+#[dismantle]
+struct Container<C: Clone, T = i64> {
+    a: i32,
+    b: Vec<i32>,
+    c: Vec<T>,
+    d: C,
+    e: T
+}
+
+#[dismantle]
+struct Tuple(i32, i32);
+
+#[dismantle]
+struct Tuple2<T>(i32, T);
+
+fn main() {
+    let a: Container::a = 10;
+    let b: Container::b = vec![a];
+    let c: Container::c<i64> = vec![10];
+    let c: <Container::core<i64> as Container::protocol>::c = c;
+    let d: <Container::core<i64> as Container::protocol>::d = 10;
+    let container: Container::core<i64> = Container::core { a, b, c, d, e: 10 };
+
+    assert!(container.a == a);
+}
+```
+
+### More examples
+
+```rust
+use dismantler::dismantle;
+
+#[dismantle]
 struct Containter<T> {
     current: u8,
     buffer: Vec<u8>,
     another: T,
 }
-#[type_it]
+#[dismantle]
 struct Area(i32);
 ```
 - Will let you access the struct types as followed:
@@ -35,38 +78,16 @@ trait Trait: Container::protocol {
     fn extend(&mut self, val: Container::protocol::another); 
 }
 ```
-### More
-````rust
-#[type_it]
-struct Container<C: Clone, T = i64> {
-    a: i32,
-    b: Vec<i32>,
-    c: Vec<T>,
-    d: C,
-    e: T
-}
 
-#[type_it]
-struct Tuple(i32, i32);
 
-#[type_it]
-struct Tuple2<T>(i32, T);
+### Current support:
+  - [x] **Struct** — `static` and `generic` types
+  - [ ] **Function** — `static` and `generic` types
 
-fn main() {
-    let a: Container::fields::a = 10;
-    let b: Container::b = vec![a];
-    let c: Container::c<i64> = vec![10];
-    let c: <Container::core<i64> as Container::protocol>::c = c;
-    let d: <Container::core<i64> as Container::protocol>::d = 10;
-    let container: Container::core<i64> = Container::core { a, b, c, d, e: 10 };
 
-    assert!(container.a == a);
-}
-````
-
-# Disassembler
+### Disassembler
 ```rust
-#[type_it]
+#[dismantle]
 struct #name {
     #(#ident: #ty)*
 }
@@ -92,10 +113,12 @@ pub mod #name {
 }
 ```
 
-# Future plans 
+### Future plans 
 #### Renaming disassembler
 ```rust
-#[type_it = "MContainer"]
+use dismantler::dismantle;
+
+#[dismantle = "MContainer"]
 struct Containter<T> {
     current: u8,
     buffer: Vec<u8>,

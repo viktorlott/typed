@@ -165,14 +165,16 @@ impl ToTokens for TypeModule {
 impl ToTokens for TypeModuleInner {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let type_decls: &Vec<TypeAlias> = &self.type_decls;
+        let field_decls = type_decls.iter().map(|t| t.ident.clone()).collect::<Vec<Ident>>();
+
 
         let type_decls = quote!(#(#type_decls)*);
         let struct_decl = &self.struct_decl;
         let generic_decl = &self.generic_decl;
 
         let inner_decls = quote!(
-            pub mod fields { 
-                #type_decls 
+            pub mod field { 
+                #(pub struct #field_decls;)*
             }
 
             #type_decls
